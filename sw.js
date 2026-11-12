@@ -1,6 +1,6 @@
 /* NT Nursing service worker: mở được khi mất mạng.
    Đổi VERSION mỗi lần cập nhật phần mềm. */
-var VERSION = "2026-11-12a";
+var VERSION = "2026-11-12b";
 var SHELL = "nt-shell-" + VERSION;
 var DOCS = "nt-docs";
 var SHELL_FILES = [
