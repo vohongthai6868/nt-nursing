@@ -1,0 +1,42 @@
+rules_version = '2';
+// NT Nursing - quy tắc bảo mật Firestore
+// - Chỉ người đã đăng nhập VÀ được Phòng Điều dưỡng duyệt (có hồ sơ trong members) mới đọc được dữ liệu.
+// - Quyền "viewer" chỉ xem; "editor"/"admin" được nhập, sửa.
+// - Riêng email quản trị (đã xác minh) mới duyệt, phân quyền tài khoản.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.email == 'pddbvnt@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+    function memberDoc() { return /databases/$(database)/documents/members/$(request.auth.uid); }
+    function isMember() { return isAdmin() || (signedIn() && exists(memberDoc())); }
+    function canEdit() {
+      return isAdmin() || (signedIn() && exists(memberDoc()) && get(memberDoc()).data.role in ['editor', 'admin']);
+    }
+
+    // Danh sách tài khoản được duyệt
+    match /members/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+    // Yêu cầu cấp quyền (người dùng tự gửi)
+    match /requests/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create, update: if signedIn() && request.auth.uid == uid
+                            && request.resource.data.email == request.auth.token.email;
+      allow delete: if isAdmin();
+    }
+    // Hồ sơ riêng của từng người (chọn "Tôi là ai")
+    match /data/users/{uid}/{rest=**} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+    // Mọi mục dữ liệu nghiệp vụ (staff, sops, checklists, incidents, ...)
+    match /{col}/{docId} {
+      allow read: if isMember() && !(col in ['members', 'requests']);
+      allow write: if canEdit() && !(col in ['members', 'requests']);
+    }
+  }
+}
